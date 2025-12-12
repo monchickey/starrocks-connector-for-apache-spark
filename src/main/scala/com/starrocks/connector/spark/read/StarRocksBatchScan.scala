@@ -87,6 +87,11 @@ class StarRocksScanBuilder(tableName: String,
 
   override def build(): Scan = new StarRocksScan(tableName, readSchema, starRocksSchema, pushedPredicates(), config)
 
+  private def stripUnsupportedEscape(sql: String): String = {
+    // StarRocks does not support "ESCAPE ...", drop any escape clause emitted by MySQL dialect.
+    sql.replaceAll("(?i)\\s+escape\\s+'[^']*'", "")
+  }
+
   private def compilePredicate(predicate: Predicate): Option[String] = {
     Option(predicate match {
       case and: And =>
@@ -104,7 +109,7 @@ class StarRocksScanBuilder(tableName: String,
       case _: AlwaysFalse => "false"
       case _ =>
         try {
-          dialect.compileExpression(predicate).get
+          dialect.compileExpression(predicate).map(stripUnsupportedEscape).get
         }
         catch {
           case _: Throwable => null
