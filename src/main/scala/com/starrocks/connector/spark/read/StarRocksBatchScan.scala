@@ -19,7 +19,7 @@
 
 package com.starrocks.connector.spark.read
 
-import com.starrocks.connector.spark.cfg.ConfigurationOptions.{STARROCKS_FILTER_QUERY, STARROCKS_READ_FIELD}
+import com.starrocks.connector.spark.cfg.ConfigurationOptions.{STARROCKS_FILTER_PUSHDOWN_ENABLED, STARROCKS_FILTER_QUERY, STARROCKS_READ_FIELD}
 import com.starrocks.connector.spark.cfg.Settings
 import com.starrocks.connector.spark.rest.RestService
 import com.starrocks.connector.spark.sql.schema.StarRocksSchema
@@ -31,6 +31,7 @@ import org.apache.spark.sql.connector.read.partitioning.{Partitioning, UnknownPa
 import org.apache.spark.sql.connector.util.V2ExpressionSQLBuilder
 import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.StructType
+import org.apache.commons.lang3.StringUtils
 
 import scala.collection.JavaConverters.collectionAsScalaIterableConverter
 
@@ -48,6 +49,10 @@ class StarRocksScanBuilder(tableName: String,
 
   private lazy val dialect = JdbcDialects.get("jdbc:mysql")
 
+  private def pushdownEnabled: Boolean = {
+    !StringUtils.equalsIgnoreCase(config.getProperty(STARROCKS_FILTER_PUSHDOWN_ENABLED, "true"), "false")
+  }
+
   override def pruneColumns(requiredSchema: StructType): Unit = {
     val requiredCols = requiredSchema.map(_.name)
     this.readSchema = StructType(readSchema.filter(field => requiredCols.contains(field.name)))
@@ -59,6 +64,12 @@ class StarRocksScanBuilder(tableName: String,
   private var supportedPredicates = Array.empty[Predicate]
 
   override def pushPredicates(predicates: Array[Predicate]): Array[Predicate] = {
+    if (!pushdownEnabled) {
+      supportedPredicates = Array.empty
+      // let Spark handle all predicates
+      return predicates
+    }
+
     val (supported, unSupported) = predicates.partition(dialect.compileExpression(_).isDefined)
 
     val predicateWhereClause = supported
