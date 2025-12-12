@@ -35,6 +35,7 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.math.min
+import org.apache.commons.lang3.StringUtils
 
 
 private[sql] class StarRocksRelation(
@@ -57,8 +58,16 @@ private[sql] class StarRocksRelation(
 
   override def schema: StructType = lazySchema
 
+  private def pushdownEnabled: Boolean = {
+    !StringUtils.equalsIgnoreCase(cfg.getProperty(STARROCKS_FILTER_PUSHDOWN_ENABLED, "true"), "false")
+  }
+
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = {
-    filters.filter(DialectUtils.compileFilter(_, dialect, inValueLengthLimit).isEmpty)
+    if (!pushdownEnabled) {
+      filters
+    } else {
+      filters.filter(DialectUtils.compileFilter(_, dialect, inValueLengthLimit).isEmpty)
+    }
   }
 
   // TableScan
@@ -73,8 +82,12 @@ private[sql] class StarRocksRelation(
 
     // filter where clause can be handled by StarRocks BE
     val filterWhereClause: String = {
-      filters.flatMap(DialectUtils.compileFilter(_, dialect, inValueLengthLimit))
+      if (pushdownEnabled) {
+        filters.flatMap(DialectUtils.compileFilter(_, dialect, inValueLengthLimit))
           .map(filter => s"($filter)").mkString(" and ")
+      } else {
+        ""
+      }
     }
 
     // required columns for column pruner

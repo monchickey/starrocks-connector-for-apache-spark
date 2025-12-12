@@ -43,6 +43,7 @@ public interface ConfigurationOptions {
     String STARROCKS_TABLE_IDENTIFIER = "starrocks.table.identifier";
     String STARROCKS_READ_FIELD = "starrocks.read.field";
     String STARROCKS_FILTER_QUERY = "starrocks.filter.query";
+    String STARROCKS_FILTER_PUSHDOWN_ENABLED = "starrocks.filter.pushdown.enabled";
     String STARROCKS_FILTER_QUERY_IN_MAX_COUNT = "starrocks.filter.query.in.max.count";
     int STARROCKS_FILTER_QUERY_IN_VALUE_UPPER_LIMIT = 10000;
 
